@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bot</title>
+  <link rel="stylesheet" href="index.css" />
+</head>
+
+<body>
+  <h3>Simple Game Bot</h3>
+  <p>Welcome to Game Bot</p>
+  <p id="demo"></p>
+  <p id="count">Total Clients:0</p>
+  <p id="players">Total players:</p>
+  <p id="number1">YOUR NUMBER IS .....</p>
+  <p id="dd">Winner: @pending</p>
+  <p id="status">Connecting</p>
+
+  <form id="nameForm" method="post">
+    <label>Enter Your name:</label>
+    <input type="text" id="fname" name="fname" />
+
+    <button type="submit" id="ddd">Send the name</button> <br />
+    <label>Regular mode:</label>
+    <input type="checkbox" />
+  </form>
+
+  <div id="grid" style="
+        display: grid;
+        grid-template-columns: repeat(3, 100px);
+        gap: 10px;
+        margin-top: 20px;
+      ">
+    <button id="btn1" data-number="1" onclick="myFunction(this)"></button>
+
+    <button id="btn2" data-number="2" onclick="myFunction(this)"></button>
+
+    <button id="btn3" data-number="3" onclick="myFunction(this)"></button>
+
+    <button id="btn4" data-number="4" onclick="myFunction(this)"></button>
+
+    <button id="btn5" data-number="5" onclick="myFunction(this)"></button>
+
+    <button id="btn6" data-number="6" onclick="myFunction(this)"></button>
+
+    <button id="btn7" data-number="7" onclick="myFunction(this)"></button>
+
+    <button id="btn8" data-number="8" onclick="myFunction(this)"></button>
+
+    <button id="btn9" data-number="9" onclick="myFunction(this)"></button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+    document
+      .getElementById("nameForm")
+      .addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const fname = document.getElementById("fname").value;
+        console.log("fname here", fname);
+
+        const response = await fetch("/user", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ fname }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          alert(result.message);
+        } else {
+          alert("Failed to send name");
+        }
+      });
+
+    let socket = io("/gameBot");
+
+    let p1moves = "";
+
+    let p2moves = "";
+
+    let clicks = [];
+
+    const status = document.getElementById("status");
+
+    let playerNumber = null;
+    let myTurn = false;
+
+    socket.on("connect", () => {
+      console.log("Connected to /gameBot namespace:", socket.id);
+    });
+
+    socket.on("playerNumber", (num) => {
+      playerNumber = num;
+      console.log("This is first number:", playerNumber);
+    });
+
+    socket.on("waiting", () => {
+      status.textContent = "Waiting for another player...";
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("Connection failed:", err.message);
+      alert(err.message);
+    });
+
+    socket.on("startGame", (yourTurn) => {
+      myTurn = yourTurn;
+      status.innerHTML = yourTurn ? "Your Turns " : "Opponents turn";
+    });
+
+    socket.on("opponentLeft", () => {
+      status.innerHTML = "Opponent disconnected.";
+      end();
+    });
+
+    socket.on("setTurn", (turn) => {
+      myTurn = turn === playerNumber;
+      status.textContent = myTurn ? "Your turn" : "Opponent's turn";
+    });
+
+    let answer = ["123", "147", "369", "789", "357", "159", "456", "258"];
+
+    // user clicks
+    function myFunction(e) {
+      const btn = document.getElementById(`btn${e.dataset.number}`);
+      btn.disabled = true;
+
+      let v = e.dataset.number;
+
+      const mark = playerNumber === 1 ? "X" : "O";
+      btn.textContent = mark;
+
+      clicks.push(v);
+
+      socket.emit("clicksarray", clicks);
+
+      console.log("The complete clicks of players", clicks);
+
+      socket.emit("onmove", { v, player: playerNumber });
+
+      if (v && playerNumber == 1) {
+        for (let x = 1; x <= 9; x++) { }
+      }
+    }
+
+    socket.on("cc", (data) => {
+      clicks.push(data[0]);
+      console.log("the clicks are:", clicks);
+    });
+
+    socket.on("updatebuttons", (data) => {
+      // from the updated functionality {v: '1', player: 1}
+
+      const mark = data.player === 1 ? "X" : "O";
+      const btn = document.getElementById(`btn${data.v}`);
+
+      btn.textContent = mark;
+      btn.disabled = true;
+
+      if (data.player == 1) {
+        p1moves = p1moves.concat(data.v);
+
+        for (let m = 0; m < answer.length; m++) {
+          let ss = answer[m]; //159
+
+          for (let n of p1moves) {
+            ss = ss.replace(n, "");
+          }
+
+          if (ss.length == 0) {
+            alert("PLAYER 1 IS WINNER");
+            end();
+            socket.disconnect();
+          }
+        }
+      } else {
+        p2moves = p2moves.concat(data.v);
+
+        for (let m = 0; m < answer.length; m++) {
+          let ss = answer[m]; //159
+
+          for (let n of p2moves) {
+            ss = ss.replace(n, "");
+          }
+
+          if (ss.length == 0) {
+            alert("PLAYER 2 IS WINNER ");
+            end();
+            socket.disconnect();
+          }
+        }
+      }
+    });
+
+    socket.on("clientCount", (data) => {
+      document.getElementById("count").innerHTML = `Total Clients: ${data}`;
+    });
+
+    function end() {
+      for (let i = 1; i <= 9; i++) {
+        const btn = document.getElementById(`btn${i}`);
+        btn.disabled = true;
+      }
+    }
+  </script>
+</body>
+
+</html>
